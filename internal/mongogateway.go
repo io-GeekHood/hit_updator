@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -15,16 +15,16 @@ func MongoUpdater(mongoCNN string) {
 
 	for {
 		task := <-UpdateJobRegister
-		fmt.Printf("update task recieved by mongo updater %+v", task)
+		log.Printf("update task recieved by mongo updater %+v", task)
 		pid := task["product_id"]
 		index := task["image_id"]
-		coll := task["bucket"]
+		coll := task["vendor"]
 		file := task["path"]
 		exist := checkExist(mongoClient, pid, coll)
 		if exist {
 			Update(mongoClient, pid, coll, index, file)
 		} else {
-			logrus.Println("ID does not exist !")
+			log.Println("ID does not exist !")
 		}
 	}
 }
@@ -54,10 +54,10 @@ func Update(connection *mongo.Client, keyname string, collection string, idx str
 		}),
 	)
 	if result != nil {
-		fmt.Printf("\nSuccesfully updated %s in image index %s\n", keyname, idx)
+		log.Printf("Succesfully updated %s in image index %s", keyname, idx)
 
 	} else {
-		fmt.Printf("\nsomething went wrong with doneJob task register%s\n", keyname, idx)
+		log.Printf("something went wrong with doneJob task register%s", keyname, idx)
 	}
 
 	//if err != nil {
@@ -73,7 +73,7 @@ func Dbclient(databaseAddress string) *mongo.Client {
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(databaseAddress))
 	if err != nil {
 		Detail := fmt.Sprintf("mongo-db connection failure ! %s %v", databaseAddress, err)
-		logrus.Errorln(Detail)
+		log.Errorln(Detail)
 	}
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
 		panic(err)

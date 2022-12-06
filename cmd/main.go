@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/joho/godotenv"
+	log "github.com/sirupsen/logrus"
 	"github.com/vortex/mongoupdate/internal"
-	"log"
 	"os"
 )
 
