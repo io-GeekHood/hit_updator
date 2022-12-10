@@ -60,9 +60,6 @@ func Update(connection *mongo.Client, keyname string, collection string, idx str
 		log.Printf("something went wrong with doneJob task register%s", keyname, idx)
 	}
 
-	//if err != nil {
-	//	fmt.Printf("\nMONGO UPDATE RESULT IS %s\n", err)
-	//}
 	return true
 
 }
