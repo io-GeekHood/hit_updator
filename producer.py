@@ -20,8 +20,8 @@ try:
     S3Host = os.environ.get('MINIO_HOST', 's3://hitdata.datist.ir:9000/')
     MinioUser = os.environ.get('MINIO_USER', 'hitadmin')
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
-    IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "test")
-    REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "test")
+    IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala_orphan_media")
+    REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "okala_orphan_refrence")
     MongoHost = os.getenv('MONGODB_URI')
     SLEEPING = os.getenv('SLEEPING')
     logging.info(f"MinioHost:{MinioHost}")
@@ -47,19 +47,25 @@ def initiator():
             secure=True
         )
         img_found = initiator.bucket_exists(IMAGE_BUCKET)
-        if not img_found:
-            initiator.make_bucket(IMAGE_BUCKET)
-        else:
-            logging.warning(f"Image-Bucket {IMAGE_BUCKET} already exists")
+        try:
+            if not img_found:
+                initiator.make_bucket(IMAGE_BUCKET)
+            else:
+                logging.warning(f"Image-Bucket {IMAGE_BUCKET} already exists")
+        except:
+            pass
         ref_found = initiator.bucket_exists(REFRENCE_BUCKET)
-        if not ref_found:
-            initiator.make_bucket(REFRENCE_BUCKET)
-        else:
-            logging.warning(f"Refrence-Bucket {REFRENCE_BUCKET} already exists")
+        try:
+            if not ref_found:
+                initiator.make_bucket(REFRENCE_BUCKET)
+            else:
+                logging.warning(f"Refrence-Bucket {REFRENCE_BUCKET} already exists")
+        except:
+            pass
     except Exception as fail:
         logging.warning(
-            f"Unable to Access S3 filesystem at: {MinioHost} \n access_key : {MinioUser} \n secret_key : {MinioPass}")
-
+            f"Unable to Access S3 filesystem at: {MinioHost} \n access_key : {MinioUser} \n secret_key : {MinioPass}| {fail}")
+        pass
 
 def image_meta_generator(name,images):
     buffer = []
@@ -107,7 +113,7 @@ def transformer(data:dict) -> dict:
                 {"text": data["brandName"], "lang": "IR"},
                 {"text": data["brandLatinName"], "lang": "US"}
             ],
-            "media": image_meta_generator(data["name"],data["fullImage"]),
+            "media": image_meta_generator(data["id"],data["fullImage"]),
             "rating": data["avgRate"],
             "product_url": data["productWebLink"],
             "original_release_date": to_timestamp(data["brand"]["createdOn"]),
@@ -153,12 +159,12 @@ def get_state(file):
             last_insert = st.read()
         return int(last_insert)
 
-def simple_collect(client:MongoClient,data_object:dict):
-    null_model = {
+def simple_collect(client:MongoClient,data_object:dict) -> list:
+    null_model = [{
                 "url": "https://cdn.okala.com/Media/Index_v2/Product/380636",
                 "image_id": "bag_of_shit",
-                "file_id": "0-0-0-0"
-                }
+                "product_id": "0-0-0-0"
+                }]
     db = "okala-fmcg"
     collection = "products"
     if not data_object:
@@ -172,7 +178,7 @@ def simple_collect(client:MongoClient,data_object:dict):
             logging.debug(f"inserted new okala-product with id {r.inserted_id} (success) !")
         except Exception as fail:
             logging.error(f"Failed on mongodb insert phase :{fail}")
-            return null_model
+            pass
         try:
             media = vortex_format["product"]["media"]
             logging.warning(f"returning images job with {media}")
@@ -185,7 +191,9 @@ def simple_collect(client:MongoClient,data_object:dict):
         return null_model
 
 def get_with_simple_request(url:str,allprx:pd.DataFrame,format:str):
+
     tries = 0
+    logging.info(f"GET : {url}")
     while True:
         tries += 1
         if tries > 12:
@@ -193,7 +201,7 @@ def get_with_simple_request(url:str,allprx:pd.DataFrame,format:str):
         random_prx = allprx.sample()
         random_prx = random_prx.to_dict(orient="records")[0]
         try:
-            logging.debug(f"using {random_prx}")
+            logging.debug(f"using {random_prx['host']}")
             prox = {
                 "http": f"http://farid:hg6ykTTBfaGT6nDSzPY9NmKd@{random_prx['host']}:{random_prx['port']}",
                 "https": f"http://farid:hg6ykTTBfaGT6nDSzPY9NmKd@{random_prx['host']}:{random_prx['port']}"
@@ -206,7 +214,7 @@ def get_with_simple_request(url:str,allprx:pd.DataFrame,format:str):
                 elif format == "raw":
                     return resp.raw.read()
         except:
-            print(f"failed with  {random_prx} (retrying with new proxy {tries}/15 chances)")
+            logging.info(f"failed with  {random_prx} (retrying with new proxy {tries}/15 chances)")
             pass
 
 
@@ -224,17 +232,42 @@ def minio_image_uploader(filename:str,datas:object,lenght:int):
                 secret_key=MinioPass,
                 secure=True
             )
+            filename = filename + ".jpg"
             client.put_object(bucket_name=IMAGE_BUCKET,object_name=filename,length=lenght,data=datas)
             logging.info(f"image {filename} lenght #{lenght} uploaded with success !")
             break
         except Exception as fail:
             logging.error(f"failed to insert image to minio bucket {fail} (retrying to upload {tries}/10 chances)")
+def minio_parquet_upload(idx:int,datas:pd.DataFrame):
+    local_path = f"refrences/checkpoint_{idx}.parquet"
+    try:
+        client = Minio(
+            MinioHost,
+            access_key=MinioUser,
+            secret_key=MinioPass,
+            secure=True
+        )
+    except Exception as fail:
+        logging.error(f"failed to create connection to minio address {MinioHost} user = {MinioUser} pass = {MinioPass} |\n {fail}")
+
+    try:
+        datas["image_id"] = datas["image_id"].astype(str)
+        datas["file_id"] = datas["file_id"].astype(str)
+        datas.to_parquet(local_path)
+        client.fput_object(REFRENCE_BUCKET, f"checkpoint_{idx}.parquet",local_path)
+        logging.info(f"{local_path} is successfully uploaded archive {REFRENCE_BUCKET} (removing temp file)")
+    except Exception as fail:
+        logging.error(f"failed to insert parquet file on minio filesystem| {fail}")
+    finally:
+        try:
+            os.remove(local_path)
+        except:
+            pass
 
 if __name__ == '__main__':
 
 
-
-
+    initiator()
     mongo_client = MongoClient(MongoHost)
     jobs_buffer = []
     refs = pd.read_excel('refs_2.xlsx')
@@ -246,32 +279,28 @@ if __name__ == '__main__':
     allprx = get_proxy()
     refrences = []
     checkpoint = 0
-
+    count = 0
     for store in stores[st:]:
         currentStore += 1
         save_state("shop", currentStore)
         count = get_state("data")
         for prod_number in refs["ProductId"][count:]:
             count += 1
-            if count > 1000:
-                check += 1
-                to_save = pd.Series(refrence)
-                to_save.to_csv(f"checkpoint_{check}")
-                count = 0
             print(f"index #{count}/100")
             target = f"https://api-react.okala.com/C/ReactProduct/GetProductById?productId={prod_number}&storeId={store}"
             result = get_with_simple_request(target,allprx,"json")
             image_info = simple_collect(mongo_client,result)
-            save_state("data",prod_number)
-            if image_info["file_id"] != "0-0-0-0":
-                imageBytes = get_with_simple_request(image_info["url"], allprx,"raw")
-                b = bytearray(imageBytes)
-                byte_len = len(b)
-                value_as_a_stream = io.BytesIO(b)
-                minio_image_uploader(image_info["image_id"], value_as_a_stream, byte_len)
-                refrences.append(image_info)
-                if len(refrences) > 10:
-                    checkpoint += 1
-                    framed = pd.DataFrame(refrences)
-                    framed.to_csv(f"refrences/checkpoint_{checkpoint}")
-                    refrences = []
+            save_state("data",count)
+            for image in image_info:
+                if image["product_id"] != "0-0-0-0":
+                    imageBytes = get_with_simple_request(image["url"], allprx,"raw")
+                    b = bytearray(imageBytes)
+                    byte_len = len(b)
+                    value_as_a_stream = io.BytesIO(b)
+                    minio_image_uploader(image["image_id"], value_as_a_stream, byte_len)
+                    refrences.append(image)
+                    if len(refrences) > 10:
+                        checkpoint += 1
+                        framed = pd.DataFrame(refrences)
+                        minio_parquet_upload(checkpoint,framed)
+                        refrences = []
