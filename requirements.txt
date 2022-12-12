@@ -5,3 +5,4 @@ pandas
 openpyxl
 requests
 persiantools
+furl

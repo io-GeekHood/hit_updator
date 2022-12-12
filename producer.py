@@ -1,3 +1,5 @@
+import time
+
 import requests
 from dotenv import load_dotenv
 import uuid
@@ -10,6 +12,7 @@ import uuid
 from datetime import datetime as dts
 import pytz
 from persiantools.jdatetime import JalaliDate
+from furl import furl
 import pandas as pd
 import io
 from minio import Minio
@@ -20,10 +23,9 @@ try:
     S3Host = os.environ.get('MINIO_HOST', 's3://hitdata.datist.ir:9000/')
     MinioUser = os.environ.get('MINIO_USER', 'hitadmin')
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
-    IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala_orphan_media")
-    REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "okala_orphan_refrence")
+    IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-main")
+    REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "okala-refrence-main")
     MongoHost = os.getenv('MONGODB_URI')
-    SLEEPING = os.getenv('SLEEPING')
     logging.info(f"MinioHost:{MinioHost}")
     logging.info(f"S3Host:{S3Host}")
     logging.info(f"MinioUser:{MinioUser}")
@@ -31,7 +33,6 @@ try:
     logging.info(f"IMAGE_BUCKET:{IMAGE_BUCKET}")
     logging.info(f"REFRENCE_BUCKET:{REFRENCE_BUCKET}")
     logging.info(f"MongoHost:{MongoHost}")
-    logging.info(f"SLEEPING:{SLEEPING}")
 except:
     logging.error(f"failed to load ENVS")
 
@@ -47,21 +48,19 @@ def initiator():
             secure=True
         )
         img_found = initiator.bucket_exists(IMAGE_BUCKET)
-        try:
-            if not img_found:
-                initiator.make_bucket(IMAGE_BUCKET)
-            else:
-                logging.warning(f"Image-Bucket {IMAGE_BUCKET} already exists")
-        except:
-            pass
+
+        if not img_found:
+            initiator.make_bucket(IMAGE_BUCKET)
+        else:
+            logging.warning(f"Image-Bucket {IMAGE_BUCKET} already exists")
+
         ref_found = initiator.bucket_exists(REFRENCE_BUCKET)
-        try:
-            if not ref_found:
-                initiator.make_bucket(REFRENCE_BUCKET)
-            else:
-                logging.warning(f"Refrence-Bucket {REFRENCE_BUCKET} already exists")
-        except:
-            pass
+
+        if not ref_found:
+            initiator.make_bucket(REFRENCE_BUCKET)
+        else:
+            logging.warning(f"Refrence-Bucket {REFRENCE_BUCKET} already exists")
+
     except Exception as fail:
         logging.warning(
             f"Unable to Access S3 filesystem at: {MinioHost} \n access_key : {MinioUser} \n secret_key : {MinioPass}| {fail}")
@@ -106,8 +105,7 @@ def transformer(data:dict) -> dict:
                 {"text": data["description"], "lang": "IR"}
             ],
             "multi_lingual_review": [
-                {"text": "گوشی بسیار خوبه و همه قس… دستش درد نکنه دیجیکالا", "lang": "IR"},
-                {"text": "سری پوکو گوشی‌های هوشمند…هوشمند میان‌رده هستند.", "lang": "IR"}
+                {"text": data["metaDescription"], "lang": "IR"}
             ],
             "multi_lingual_brand": [
                 {"text": data["brandName"], "lang": "IR"},
@@ -190,13 +188,21 @@ def simple_collect(client:MongoClient,data_object:dict) -> list:
         logging.warning(f"product is not active and has no data !")
         return null_model
 
-def get_with_simple_request(url:str,allprx:pd.DataFrame,format:str):
-
+def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
+    stores = [5431, 5038, 5350]
     tries = 0
-    logging.info(f"GET : {url}")
+    store = 0
+    url = furl(url)
     while True:
+        store += 1
+        url.set({"storeId": str(stores[store]),"productId":prid})
+        logging.info(f"GET : {url}")
+        if store >= 2:
+            store = 0
         tries += 1
         if tries > 12:
+            logging.info("PRESS CTRL+C TO KILL !")
+            time.sleep(5)
             break
         random_prx = allprx.sample()
         random_prx = random_prx.to_dict(orient="records")[0]
@@ -209,15 +215,30 @@ def get_with_simple_request(url:str,allprx:pd.DataFrame,format:str):
             resp = requests.get(url,proxies=prox,timeout=8)
             if resp.status_code == 200:
                 logging.info(f"fetched {resp.status_code} with proxy {random_prx} (success)")
-                if format == "json":
-                    return resp.json()
-                elif format == "raw":
-                    return resp.raw.read()
+
+                return resp.json()
+
         except:
             logging.info(f"failed with  {random_prx} (retrying with new proxy {tries}/15 chances)")
             pass
 
-
+def get_image_with_simple_request(url:str):
+    tries = 0
+    while True:
+        logging.info(f"GET : {url}")
+        tries += 1
+        if tries > 12:
+            logging.info("PRESS CTRL+C TO KILL ! (image not found !)")
+            time.sleep(5)
+            break
+        try:
+            resp = requests.get(url,timeout=12)
+            if resp.status_code == 200:
+                logging.info(f"fetched {resp.status_code} image (success)")
+                return resp.content
+        except:
+            logging.info(f"failed to get image from {url} (retrying {tries}/15 chances)")
+            pass
 def minio_image_uploader(filename:str,datas:object,lenght:int):
     tries = 0
     while True:
@@ -265,42 +286,36 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
             pass
 
 if __name__ == '__main__':
-
-
     initiator()
     mongo_client = MongoClient(MongoHost)
     jobs_buffer = []
     refs = pd.read_excel('refs_2.xlsx')
-    st = get_state("shop")
     refrence = []
-    stores= [5431,5038,5350]
     check = 0
     currentStore = 0
     allprx = get_proxy()
     refrences = []
     checkpoint = 0
     count = 0
-    for store in stores[st:]:
-        currentStore += 1
-        save_state("shop", currentStore)
-        count = get_state("data")
-        for prod_number in refs["ProductId"][count:]:
-            count += 1
-            print(f"index #{count}/100")
-            target = f"https://api-react.okala.com/C/ReactProduct/GetProductById?productId={prod_number}&storeId={store}"
-            result = get_with_simple_request(target,allprx,"json")
-            image_info = simple_collect(mongo_client,result)
-            save_state("data",count)
-            for image in image_info:
-                if image["product_id"] != "0-0-0-0":
-                    imageBytes = get_with_simple_request(image["url"], allprx,"raw")
-                    b = bytearray(imageBytes)
-                    byte_len = len(b)
-                    value_as_a_stream = io.BytesIO(b)
-                    minio_image_uploader(image["image_id"], value_as_a_stream, byte_len)
-                    refrences.append(image)
-                    if len(refrences) > 10:
-                        checkpoint += 1
-                        framed = pd.DataFrame(refrences)
-                        minio_parquet_upload(checkpoint,framed)
-                        refrences = []
+    for prod_number in refs["ProductId"][count:]:
+        count += 1
+        print(f"index #{count}/100")
+        target = f"https://api-react.okala.com/C/ReactProduct/GetProductById?"
+        result = get_data_with_simple_request(target,allprx,prod_number)
+        image_info = simple_collect(mongo_client,result)
+        save_state("data",count)
+        for image in image_info:
+            if image["product_id"] != "0-0-0-0":
+                imageBytes = get_image_with_simple_request(image["url"])
+                b = bytearray(imageBytes)
+                byte_len = len(b)
+                value_as_a_stream = io.BytesIO(b)
+                minio_image_uploader(image["image_id"], value_as_a_stream, byte_len)
+                refrences.append(image)
+                if len(refrences) > 10:
+                    checkpoint += 1
+                    framed = pd.DataFrame(refrences)
+                    minio_parquet_upload(checkpoint,framed)
+                    refrences = []
+
+
