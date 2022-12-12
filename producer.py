@@ -17,7 +17,7 @@ import pandas as pd
 import io
 from minio import Minio
 logging.basicConfig(level=logging.DEBUG)
-# docker run --network=host --name okalaorphan --mount type=bind,source="$(pwd)"/state_storage,target=/app/state_storage okala_collect:okala_koskeshi_mode
+# docker run --network=host --name okalaorphan --mount type=bind,source="$(pwd)"/state_storage,target=/app/state_storage okala-collector:koskeshi-mode
 
 try:
     load_dotenv()
@@ -201,22 +201,23 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
         logging.info(f"GET : {url}")
         if store >= 2:
             store = 0
+        try:
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 200:
+                logging.info("TRING NO PROXY FINAL MODE")
+                logging.info(f"fetched {resp.status_code} with no proxy (success)")
+                return resp.json()
+            else:
+                logging.info("failed on simple request with no proxy")
+                time.sleep(3)
+                break
+        except:
+            pass
         tries += 1
         if tries > 12:
-            try:
-                resp = requests.get(url, timeout=10)
-                if resp.status_code == 200:
-                    logging.info("TRING NO PROXY FINAL MODE")
-                    logging.info(f"fetched {resp.status_code} with no proxy (success)")
-                    return resp.json()
-                else:
-                    logging.info("PRESS CTRL+C TO KILL !")
-                    time.sleep(5)
-                    break
-            except:
-                logging.info("PRESS CTRL+C TO KILL !")
-                time.sleep(5)
-                break
+            logging.info("PRESS CTRL+C TO KILL !")
+            time.sleep(5)
+            break
         random_prx = allprx.sample()
         random_prx = random_prx.to_dict(orient="records")[0]
         try:
