@@ -1,0 +1,7 @@
+python-dotenv
+pymongo
+minio
+pandas
+openpyxl
+requests
+persiantools
