@@ -17,6 +17,8 @@ import pandas as pd
 import io
 from minio import Minio
 logging.basicConfig(level=logging.DEBUG)
+# docker run --network=host --name okalaorphan --mount type=bind,source="$(pwd)"/state_storage,target=/app/state_storage okala_collect:okala_koskeshi_mode
+
 try:
     load_dotenv()
     MinioHost = os.environ.get('MINIO_HOST', 'hitdata.datist.ir:9000')
@@ -94,7 +96,7 @@ def to_timestamp(oktime:str):
 def transformer(data:dict) -> dict:
     message = {
         "product": {
-            "id": str(data["id"]),
+            "id": data["id"],
             "multi_lingual_title": [
                 {"text": data["name"], "lang": "IR"},
                 {"text": data["categoryLatinName"], "lang": "US"}
@@ -141,17 +143,17 @@ def get_proxy():
 
 
 def save_state(file,number):
-    if file == "shop":
-        with open("state_storage/shop_state.txt","w") as st:
+    if file == "checkpoint":
+        with open("state_storage/check_state.txt","w") as st:
             st.write(str(number))
     elif file == "data":
         with open("state_storage/data_state.txt","w") as st:
             st.write(str(number))
 def get_state(file):
-    if file == "shop":
-        with open("state_storage/shop_state.txt","r") as st:
-            currentShop = st.read()
-        return int(currentShop)
+    if file == "checkpoint":
+        with open("state_storage/check_state.txt", "r") as st:
+            lastcheck = st.read()
+        return int(lastcheck)
     elif file == "data":
         with open("state_storage/data_state.txt","r") as st:
             last_insert = st.read()
@@ -201,9 +203,20 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
             store = 0
         tries += 1
         if tries > 12:
-            logging.info("PRESS CTRL+C TO KILL !")
-            time.sleep(5)
-            break
+            try:
+                resp = requests.get(url, timeout=10)
+                if resp.status_code == 200:
+                    logging.info("TRING NO PROXY FINAL MODE")
+                    logging.info(f"fetched {resp.status_code} with no proxy (success)")
+                    return resp.json()
+                else:
+                    logging.info("PRESS CTRL+C TO KILL !")
+                    time.sleep(5)
+                    break
+            except:
+                logging.info("PRESS CTRL+C TO KILL !")
+                time.sleep(5)
+                break
         random_prx = allprx.sample()
         random_prx = random_prx.to_dict(orient="records")[0]
         try:
@@ -212,7 +225,7 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
                 "http": f"http://farid:hg6ykTTBfaGT6nDSzPY9NmKd@{random_prx['host']}:{random_prx['port']}",
                 "https": f"http://farid:hg6ykTTBfaGT6nDSzPY9NmKd@{random_prx['host']}:{random_prx['port']}"
             }
-            resp = requests.get(url,proxies=prox,timeout=8)
+            resp = requests.get(url,proxies=prox,timeout=10)
             if resp.status_code == 200:
                 logging.info(f"fetched {resp.status_code} with proxy {random_prx} (success)")
 
@@ -245,6 +258,8 @@ def minio_image_uploader(filename:str,datas:object,lenght:int):
         tries += 1
         if tries > 11:
             break
+        if lenght == 0:
+            break
         try:
             logging.info(f"tring to insert image in minio bucket {IMAGE_BUCKET}")
             client = Minio(
@@ -273,7 +288,7 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
 
     try:
         datas["image_id"] = datas["image_id"].astype(str)
-        datas["file_id"] = datas["file_id"].astype(str)
+        datas["product_id"] = datas["product_id"].astype(str)
         datas.to_parquet(local_path)
         client.fput_object(REFRENCE_BUCKET, f"checkpoint_{idx}.parquet",local_path)
         logging.info(f"{local_path} is successfully uploaded archive {REFRENCE_BUCKET} (removing temp file)")
@@ -281,6 +296,7 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
         logging.error(f"failed to insert parquet file on minio filesystem| {fail}")
     finally:
         try:
+            logging.error(f"removing {local_path}")
             os.remove(local_path)
         except:
             pass
@@ -295,15 +311,13 @@ if __name__ == '__main__':
     currentStore = 0
     allprx = get_proxy()
     refrences = []
-    checkpoint = 0
-    count = 0
+    checkpoint = get_state("checkpoint")
+    count = get_state("data")
     for prod_number in refs["ProductId"][count:]:
         count += 1
-        print(f"index #{count}/100")
         target = f"https://api-react.okala.com/C/ReactProduct/GetProductById?"
         result = get_data_with_simple_request(target,allprx,prod_number)
         image_info = simple_collect(mongo_client,result)
-        save_state("data",count)
         for image in image_info:
             if image["product_id"] != "0-0-0-0":
                 imageBytes = get_image_with_simple_request(image["url"])
@@ -312,10 +326,15 @@ if __name__ == '__main__':
                 value_as_a_stream = io.BytesIO(b)
                 minio_image_uploader(image["image_id"], value_as_a_stream, byte_len)
                 refrences.append(image)
-                if len(refrences) > 10:
-                    checkpoint += 1
-                    framed = pd.DataFrame(refrences)
-                    minio_parquet_upload(checkpoint,framed)
-                    refrences = []
+                logging.info(f" #{100-len(refrences)} iteration to save checkpoint !")
+            if len(refrences) > 100:
+                checkpoint += 1
+                framed = pd.DataFrame(refrences)
+                logging.info("saving checkpoint as:")
+                logging.info(framed.head(5))
+                minio_parquet_upload(checkpoint,framed)
+                refrences = []
+                save_state("checkpoint",checkpoint)
+                save_state("data", count)
 
 
