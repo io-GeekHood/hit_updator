@@ -95,7 +95,7 @@ def to_timestamp(oktime:str):
     return round(gregorian)
 def transformer(data:dict) -> dict:
     if data["brand"] is None or data["brand"] == "null":
-        data["brand"]["createdOn"] = "1396/9/7 20:01"
+        data["brand"] = {"createdOn":"1396/9/7 20:01"}
 
 
     message = {
