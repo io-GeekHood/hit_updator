@@ -200,8 +200,8 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
     store = 0
     url = furl(url)
     while True:
-        store += 1
         url.set({"storeId": str(stores[store]),"productId":prid})
+        store += 1
         logging.info(f"GET : {url}")
         if store >= 2:
             store = 0
