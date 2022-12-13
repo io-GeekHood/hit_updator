@@ -2,4 +2,5 @@ bin
 include
 lib
 lib64
+state_storage
 pyvenv.cfg

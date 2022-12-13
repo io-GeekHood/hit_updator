@@ -132,16 +132,16 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
         datas["id"] = datas["id"].astype(str)
         datas.index = datas.index.astype(str)
         datas.to_parquet(local_path)
-        client.fput_object(REFRENCE_BUCKET, f"checkpoint_{idx}.parquet",local_path)
+        # client.fput_object(REFRENCE_BUCKET, f"checkpoint_{idx}.parquet",local_path)
         logging.info(f"{local_path} is successfully uploaded archive {REFRENCE_BUCKET} (removing temp file)")
     except Exception as fail:
         logging.error(f"failed to insert parquet file on minio filesystem| {fail}")
-    finally:
-        try:
-            logging.error(f"removing {local_path}")
-            os.remove(local_path)
-        except:
-            pass
+    # finally:
+    #     try:
+    #         logging.error(f"removing {local_path}")
+    #         os.remove(local_path)
+    #     except:
+    #         pass
 
 if __name__ == "__main__":
     load_dotenv()

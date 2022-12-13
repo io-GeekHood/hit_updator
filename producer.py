@@ -314,7 +314,6 @@ if __name__ == '__main__':
     initiator()
     mongo_client = MongoClient(MongoHost)
     collection = mongo_client[MongoDb][MongoCol]
-    jobs_buffer = []
     refs = pd.read_excel('refs_2.xlsx')
     refrence = []
     check = 0
