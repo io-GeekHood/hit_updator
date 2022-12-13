@@ -1,5 +1,5 @@
+import sys
 import time
-
 import requests
 from dotenv import load_dotenv
 import uuid
@@ -16,6 +16,7 @@ from furl import furl
 import pandas as pd
 import io
 from minio import Minio
+
 logging.basicConfig(level=logging.DEBUG)
 # docker run --network=host --name okalaorphan --mount type=bind,source="$(pwd)"/state_storage,target=/app/state_storage okala-collector:koskeshi-mode
 
@@ -27,7 +28,9 @@ try:
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
     IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-main")
     REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "okala-refrence-main")
-    MongoHost = os.getenv('MONGODB_URI')
+    MongoHost = os.getenv('MONGODB_URI',"mongodb://test:test@172.27.226.107:27011")
+    MongoDb = os.getenv('MONGODB_DATABASE',"okala-fmcg")
+    MongoCol = os.getenv('MONGODB_COLLECTION',"products")
     logging.info(f"MinioHost:{MinioHost}")
     logging.info(f"S3Host:{S3Host}")
     logging.info(f"MinioUser:{MinioUser}")
@@ -35,8 +38,11 @@ try:
     logging.info(f"IMAGE_BUCKET:{IMAGE_BUCKET}")
     logging.info(f"REFRENCE_BUCKET:{REFRENCE_BUCKET}")
     logging.info(f"MongoHost:{MongoHost}")
+    logging.info(f"DATABASE:{MongoDb}")
+    logging.info(f"COLLECTION:{MongoCol}")
 except:
     logging.error(f"failed to load ENVS")
+    sys.exit(1)
 
 
 
@@ -96,8 +102,6 @@ def to_timestamp(oktime:str):
 def transformer(data:dict) -> dict:
     if data["brand"] is None or data["brand"] == "null":
         data["brand"] = {"createdOn":"1396/9/7 20:01"}
-
-
     message = {
         "product": {
             "id": data["id"],
@@ -169,8 +173,8 @@ def simple_collect(client:MongoClient,data_object:dict) -> list:
                 "image_id": "bag_of_shit",
                 "product_id": "0-0-0-0"
                 }]
-    db = "okala-fmcg"
-    collection = "products"
+    db = MongoDb
+    collection = MongoCol
     if not data_object:
         return null_model
     data = data_object["data"]
@@ -208,7 +212,7 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
         try:
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
-                logging.info("TRING NO PROXY FINAL MODE")
+                logging.info("TRING NO PROXY PRIMARY MODE")
                 logging.info(f"fetched {resp.status_code} with no proxy (success)")
                 return resp.json()
             else:
@@ -266,7 +270,7 @@ def minio_image_uploader(filename:str,datas:object,lenght:int):
         if lenght == 0:
             break
         try:
-            logging.info(f"tring to insert image in minio bucket {IMAGE_BUCKET}")
+            logging.info(f"trying to insert image in minio bucket {IMAGE_BUCKET}")
             client = Minio(
                 MinioHost,
                 access_key=MinioUser,
@@ -309,6 +313,7 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
 if __name__ == '__main__':
     initiator()
     mongo_client = MongoClient(MongoHost)
+    collection = mongo_client[MongoDb][MongoCol]
     jobs_buffer = []
     refs = pd.read_excel('refs_2.xlsx')
     refrence = []
@@ -319,6 +324,9 @@ if __name__ == '__main__':
     checkpoint = get_state("checkpoint")
     count = get_state("data")
     for prod_number in refs["ProductId"][count:]:
+        found = collection.find_one({"product.id":prod_number})
+        if found:
+            continue
         count += 1
         target = f"https://api-react.okala.com/C/ReactProduct/GetProductById?"
         result = get_data_with_simple_request(target,allprx,prod_number)
