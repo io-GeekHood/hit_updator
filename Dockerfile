@@ -6,8 +6,8 @@ ENV IMG_BUCK_NAME=okala-images-main
 ENV REF_BUCK_NAME=okala-refrence-main
 RUN python3.9 -m pip install --upgrade pip
 RUN python3.9 -m pip install -r requirements.txt
-RUN mkidir refrences
-RUN mkidir state_storage
+RUN mkdir refrences
+RUN mkdir state_storage
 COPY . /app/
 EXPOSE 27017
 ENTRYPOINT ["python3.9", "producer.py"]
