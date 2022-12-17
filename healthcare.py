@@ -8,8 +8,8 @@ from minio import Minio
 logging.basicConfig(level=logging.DEBUG)
 try:
     load_dotenv()
-    MinioHost = os.environ.get('MINIO_HOST', 'hitdata.datist.ir:9000')
-    S3Host = os.environ.get('MINIO_HOST', 's3://hitdata.datist.ir:9000/')
+    MinioHost = os.environ.get('MINIO_HOST', '178.33.19.30:9000')
+    S3Host = os.environ.get('MINIO_HOST', 's3://http://178.33.19.30/:9000/')
     MinioUser = os.environ.get('MINIO_USER', 'hitadmin')
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
     IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-main")

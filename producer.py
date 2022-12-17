@@ -22,8 +22,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 try:
     load_dotenv()
-    MinioHost = os.environ.get('MINIO_HOST', 'hitdata.datist.ir:9000')
-    S3Host = os.environ.get('MINIO_HOST', 's3://hitdata.datist.ir:9000/')
+    MinioHost = os.environ.get('MINIO_HOST', '178.33.19.30:9000')
+    S3Host = os.environ.get('MINIO_HOST', 's3://http://178.33.19.30/:9000/')
     MinioUser = os.environ.get('MINIO_USER', 'hitadmin')
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
     IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-main")
@@ -93,12 +93,16 @@ def image_meta_generator(name,images):
     return buffer
 
 def to_timestamp(oktime:str):
-    localTz = pytz.timezone('Asia/Tehran')
-    striped = dts.strptime(oktime, '%Y/%m/%d %H:%M')
-    nowutc = striped.astimezone(localTz)
-    gregorian = JalaliDate.to_gregorian(JalaliDate(nowutc)).strftime('%Y-%m-%d %H:%M:%S')
-    gregorian = dts.fromisoformat(gregorian).timestamp()
-    return round(gregorian)
+    try:
+        localTz = pytz.timezone('Asia/Tehran')
+        striped = dts.strptime(oktime, '%Y/%m/%d %H:%M')
+        nowutc = striped.astimezone(localTz)
+        gregorian = JalaliDate.to_gregorian(JalaliDate(nowutc)).strftime('%Y-%m-%d %H:%M:%S')
+        gregorian = dts.fromisoformat(gregorian).timestamp()
+        return round(gregorian)
+    except:
+        logging.info(f"failed to generate timestamp")
+        return 1671092305
 def transformer(data:dict) -> dict:
     if data["brand"] is None or data["brand"] == "null":
         data["brand"] = {"createdOn":"1396/9/7 20:01"}
@@ -181,6 +185,11 @@ def simple_collect(client:MongoClient,data_object:dict) -> list:
     if data and bool(data_object["success"]):
         logging.info("product is available")
         vortex_format = transformer(data)
+        v_headers = {"X-Session-Token": "6f6b616c615f73657276696365", "Content-Type": "application/json"}
+        vortex_ingest = os.getenv('INGESTION_API')
+        resp = requests.post(vortex_ingest, json=vortex_format, headers=v_headers)
+        logging.info(f"new product sent {resp.json()}")
+        save_state("data", vortex_format["product"]["id"])
         try:
             r = client[db][collection].insert_one(vortex_format)
             logging.debug(f"inserted new okala-product with id {r.inserted_id} (success) !")
