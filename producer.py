@@ -185,10 +185,6 @@ def simple_collect(client:MongoClient,data_object:dict) -> list:
     if data and bool(data_object["success"]):
         logging.info("product is available")
         vortex_format = transformer(data)
-        # v_headers = {"X-Session-Token": "6f6b616c615f73657276696365", "Content-Type": "application/json"}
-        # vortex_ingest = os.getenv('INGESTION_API')
-        # resp = requests.post(vortex_ingest, json=vortex_format, headers=v_headers)
-        # logging.info(f"new product sent {resp.json()}")
         save_state("data", vortex_format["product"]["id"])
         try:
             r = client[db][collection].insert_one(vortex_format)
@@ -214,22 +210,50 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
     url = furl(url)
     while True:
         url.set({"storeId": str(stores[store]),"productId":prid})
-        store += 1
         logging.info(f"GET : {url}")
-        if store >= 2:
-            store = 0
         try:
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
-                logging.info("TRING NO PROXY PRIMARY MODE")
-                logging.info(f"fetched {resp.status_code} with no proxy (success)")
-                return resp.json()
-            else:
-                logging.info("failed on simple request with no proxy")
-                time.sleep(3)
-                break
+                if resp.json()["success"]:
+                    logging.info("TRING NO PROXY PRIMARY MODE")
+                    logging.info(f"fetched {resp.status_code} with no proxy (success)")
+                    return resp.json()
+                else:
+                    logging.info(f"failed on simple request with no proxy on store {str(stores[store])} trying {str(stores[store+1])}")
+                    try:
+                        url.set({"storeId": str(stores[store+1]), "productId": prid})
+                        resp = requests.get(url, timeout=10)
+                        if resp.status_code == 200:
+                            if resp.json()["success"]:
+                                logging.info("TRING NO PROXY PRIMARY MODE")
+                                logging.info(f"fetched {resp.status_code} with no proxy (success)")
+                                return resp.json()
+                            else:
+                                logging.info(f"failed on simple request with no proxy on store {str(stores[store+1])} trying {str(stores[store + 2])}")
+                                try:
+                                    url.set({"storeId": str(stores[store + 1]), "productId": prid})
+                                    resp = requests.get(url, timeout=10)
+                                    if resp.status_code == 200:
+                                        if resp.json()["success"]:
+                                            logging.info("TRING NO PROXY PRIMARY MODE")
+                                            logging.info(f"fetched {resp.status_code} with no proxy (success)")
+                                            return resp.json()
+                                        else:
+                                            logging.info(f"failed on third store {str(stores[store + 2])}")
+                                    else:
+                                        continue
+                                except:
+                                    time.sleep(3)
+                                    logging.info(f"failed on simple request with no proxy on store {str(stores[store])}")
+                                    continue
+                    except:
+                        time.sleep(3)
+                        logging.info(f"failed on simple request with no proxy on store {str(stores[store])}")
+                        continue
         except:
-            pass
+            time.sleep(3)
+            logging.info(f"failed on simple request with no proxy on store {str(stores[store])}")
+            continue
         tries += 1
         if tries > 12:
             logging.info("PRESS CTRL+C TO KILL !")
