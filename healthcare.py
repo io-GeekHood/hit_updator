@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.DEBUG)
 try:
     load_dotenv()
     MinioHost = os.environ.get('MINIO_HOST', '178.33.19.30:9000')
-    S3Host = os.environ.get('MINIO_HOST', 's3://http://178.33.19.30/:9000/')
+    S3Host = os.environ.get('MINIO_HOST', 's3://178.33.19.30/')
     MinioUser = os.environ.get('MINIO_USER', 'hitadmin')
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
     IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-main")
@@ -123,7 +123,7 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
             MinioHost,
             access_key=MinioUser,
             secret_key=MinioPass,
-            secure=True
+            secure=False
         )
     except Exception as fail:
         logging.error(f"failed to create connection to minio address {MinioHost} user = {MinioUser} pass = {MinioPass} |\n {fail}")

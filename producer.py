@@ -22,14 +22,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 try:
     load_dotenv()
-    MinioHost = os.environ.get('MINIO_HOST', '178.33.19.30:9000')
-    S3Host = os.environ.get('MINIO_HOST', 's3://http://178.33.19.30/:9000/')
-    MinioUser = os.environ.get('MINIO_USER', 'hitadmin')
+    MinioHost = os.environ.get('MINIO_HOST', 'minio-nginx-1:9000')
+    S3Host = os.environ.get('S3_HOST', 's3://minio-nginx-1/:9000/')
+    MinioUser = os.environ.get('MINIO_USER', 'minioadmin')
     MinioPass = os.environ.get('MINIO_PASSWORD', 'sghllkfij,dhvrndld')
-    IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-main")
-    REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "okala-refrence-main")
-    MongoHost = os.getenv('MONGODB_URI',"mongodb://test:test@172.27.226.107:27011")
-    MongoDb = os.getenv('MONGODB_DATABASE',"okala-fmcg")
+    IMAGE_BUCKET = os.environ.get('IMG_BUCK_NAME', "okala-images-one")
+    REFRENCE_BUCKET = os.environ.get('REF_BUCK_NAME', "okala-refrence-one")
+    MongoHost = os.getenv('MONGODB_URI',"mongodb://test:test@test-mongotest-1:27017")
+    MongoDb = os.getenv('MONGODB_DATABASE',"okala-fmcg-one")
     MongoCol = os.getenv('MONGODB_COLLECTION',"products")
     logging.info(f"MinioHost:{MinioHost}")
     logging.info(f"S3Host:{S3Host}")
@@ -53,7 +53,7 @@ def initiator():
             MinioHost,
             access_key=MinioUser,
             secret_key=MinioPass,
-            secure=True
+            secure=False
         )
         img_found = initiator.bucket_exists(IMAGE_BUCKET)
 
@@ -284,7 +284,7 @@ def minio_image_uploader(filename:str,datas:object,lenght:int):
                 MinioHost,
                 access_key=MinioUser,
                 secret_key=MinioPass,
-                secure=True
+                secure=False
             )
             filename = filename + ".jpg"
             client.put_object(bucket_name=IMAGE_BUCKET,object_name=filename,length=lenght,data=datas)
@@ -299,7 +299,7 @@ def minio_parquet_upload(idx:int,datas:pd.DataFrame):
             MinioHost,
             access_key=MinioUser,
             secret_key=MinioPass,
-            secure=True
+            secure=False
         )
     except Exception as fail:
         logging.error(f"failed to create connection to minio address {MinioHost} user = {MinioUser} pass = {MinioPass} |\n {fail}")
