@@ -185,10 +185,10 @@ def simple_collect(client:MongoClient,data_object:dict) -> list:
     if data and bool(data_object["success"]):
         logging.info("product is available")
         vortex_format = transformer(data)
-        v_headers = {"X-Session-Token": "6f6b616c615f73657276696365", "Content-Type": "application/json"}
-        vortex_ingest = os.getenv('INGESTION_API')
-        resp = requests.post(vortex_ingest, json=vortex_format, headers=v_headers)
-        logging.info(f"new product sent {resp.json()}")
+        # v_headers = {"X-Session-Token": "6f6b616c615f73657276696365", "Content-Type": "application/json"}
+        # vortex_ingest = os.getenv('INGESTION_API')
+        # resp = requests.post(vortex_ingest, json=vortex_format, headers=v_headers)
+        # logging.info(f"new product sent {resp.json()}")
         save_state("data", vortex_format["product"]["id"])
         try:
             r = client[db][collection].insert_one(vortex_format)
