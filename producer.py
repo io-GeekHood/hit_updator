@@ -231,7 +231,7 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
                             else:
                                 logging.info(f"failed on simple request with no proxy on store {str(stores[store+1])} trying {str(stores[store + 2])}")
                                 try:
-                                    url.set({"storeId": str(stores[store + 1]), "productId": prid})
+                                    url.set({"storeId": str(stores[store + 2]), "productId": prid})
                                     resp = requests.get(url, timeout=10)
                                     if resp.status_code == 200:
                                         if resp.json()["success"]:
