@@ -215,7 +215,7 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 if resp.json()["success"]:
-                    logging.info("TRING NO PROXY PRIMARY MODE")
+                    logging.info("TRING NO PROXY PRIMARY MODE (first store)")
                     logging.info(f"fetched {resp.status_code} with no proxy (success)")
                     return resp.json()
                 else:
@@ -225,17 +225,17 @@ def get_data_with_simple_request(url:str,allprx:pd.DataFrame,prid:int):
                         resp = requests.get(url, timeout=10)
                         if resp.status_code == 200:
                             if resp.json()["success"]:
-                                logging.info("TRING NO PROXY PRIMARY MODE")
+                                logging.info("TRING NO PROXY PRIMARY MODE (second store)")
                                 logging.info(f"fetched {resp.status_code} with no proxy (success)")
                                 return resp.json()
                             else:
                                 logging.info(f"failed on simple request with no proxy on store {str(stores[store+1])} trying {str(stores[store + 2])}")
                                 try:
-                                    url.set({"storeId": str(stores[store + 1]), "productId": prid})
+                                    url.set({"storeId": str(stores[store + 2]), "productId": prid})
                                     resp = requests.get(url, timeout=10)
                                     if resp.status_code == 200:
                                         if resp.json()["success"]:
-                                            logging.info("TRING NO PROXY PRIMARY MODE")
+                                            logging.info("TRING NO PROXY PRIMARY MODE (third store)")
                                             logging.info(f"fetched {resp.status_code} with no proxy (success)")
                                             return resp.json()
                                         else:
@@ -362,6 +362,7 @@ if __name__ == '__main__':
         count += 1
         target = f"https://api-react.okala.com/C/ReactProduct/GetProductById?"
         result = get_data_with_simple_request(target,allprx,prod_number)
+        time.sleep(2)
         image_info = simple_collect(mongo_client,result)
         for image in image_info:
             if image["product_id"] != "0-0-0-0":
@@ -371,8 +372,8 @@ if __name__ == '__main__':
                 value_as_a_stream = io.BytesIO(b)
                 minio_image_uploader(image["image_id"], value_as_a_stream, byte_len)
                 refrences.append(image)
-                logging.info(f" #{100-len(refrences)} iteration to save checkpoint !")
-            if len(refrences) > 100:
+                logging.info(f" #{1000-len(refrences)} iteration to save checkpoint !")
+            if len(refrences) > 1000:
                 checkpoint += 1
                 framed = pd.DataFrame(refrences)
                 logging.info("saving checkpoint as:")
