@@ -1,7 +1,7 @@
 FROM golang:1.18.2-alpine3.16
 RUN apk add build-base
 ENV BROKER_HOST=broker:29092
-ENV KAFKA_TOPIC_LISTEN_UPDATE=media_done
+ENV KAFKA_TOPIC_LISTEN_UPDATE=done_media_create
 ENV AWS_HOST=nginx:9000
 ENV AWS_ACCESS=minioadmin
 ENV AWS_SECRET=sghllkfij,dhvrndld
