@@ -14,18 +14,33 @@ func MongoUpdater(mongoCNN string) {
 	mongoClient := Dbclient(mongoCNN)
 
 	for {
-		task := <-UpdateJobRegister
-		log.Printf("update task recieved by mongo updater %+v", task)
-		pid := task["product_id"]
-		index := task["image_id"]
-		coll := task["vendor"]
-		file := task["path"]
-		exist := checkExist(mongoClient, pid, coll)
-		if exist {
-			Update(mongoClient, pid, coll, index, file)
-		} else {
-			log.Println("ID does not exist !")
+		select {
+		case task := <-UpdateJobRegister:
+			log.Printf("update task recieved by mongo updater %+v", task)
+			pid := task["product_id"]
+			index := task["image_id"]
+			coll := task["vendor"]
+			file := task["path"]
+			exist := checkExist(mongoClient, pid, coll)
+			if exist {
+				Update(mongoClient, pid, coll, index, file)
+			} else {
+				log.Println("ID does not exist !")
+			}
+		case task := <-DeleteJobRegister:
+			log.Printf("update task recieved by mongo updater %+v", task)
+			pid := task["product_id"]
+			index := task["image_id"]
+			coll := task["vendor"]
+			file := task["path"]
+			exist := checkExist(mongoClient, pid, coll)
+			if exist {
+				Delete(mongoClient, pid, coll, index, file)
+			} else {
+				log.Println("ID does not exist !")
+			}
 		}
+
 	}
 }
 
@@ -63,7 +78,28 @@ func Update(connection *mongo.Client, keyname string, collection string, idx str
 	return true
 
 }
+func Delete(connection *mongo.Client, keyname string, collection string, idx string, newaddress string) bool {
+	coll := connection.Database("kafka-based").Collection(collection)
+	result := coll.FindOneAndUpdate(
+		context.Background(),
+		bson.D{
+			{"_id", keyname},
+		},
+		bson.M{"$unset": []string{"product.media.$[elem].url"}},
+		options.FindOneAndUpdate().SetArrayFilters(options.ArrayFilters{
+			Filters: []interface{}{bson.M{"elem.id": idx}},
+		}),
+	)
+	if result != nil {
+		log.Printf("Succesfully updated %s in image index %s", keyname, idx)
 
+	} else {
+		log.Printf("something went wrong with doneJob task register%s", keyname, idx)
+	}
+
+	return true
+
+}
 func Dbclient(databaseAddress string) *mongo.Client {
 
 	ctx := context.Background()

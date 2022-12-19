@@ -12,12 +12,12 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-	kafkaHostName := os.Getenv("KAFKA_HOST")
-	kafkaTopicName := os.Getenv("KAFKA_TOPIC")
+	kafkaHostName := os.Getenv("BROKER_HOST")
+	kafkaTopicName := os.Getenv("KAFKA_TOPIC_LISTEN_UPDATOR")
 	databaseAddress := os.Getenv("MONGODB_URI")
 	go internal.MongoUpdater(databaseAddress)
 	kafkaEngine := internal.Streamer{}
-	kafkaEngine.StreamSetup(kafkaHostName, "media_downloader")
+	kafkaEngine.StreamSetup(kafkaHostName, "media_updator")
 	kafkaEngine.Consume(kafkaTopicName)
 
 }

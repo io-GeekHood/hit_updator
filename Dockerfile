@@ -1,11 +1,11 @@
 FROM golang:1.18.2-alpine3.16
 RUN apk add build-base
-ENV KAFKA_HOST=178.33.19.30:29092
-ENV KAFKA_TOPIC=media_done
-ENV MINIO_HOST=hitdata.datist.ir:9000
-ENV AWS_ACCESS=hitadmin
+ENV BROKER_HOST=broker:29092
+ENV KAFKA_TOPIC_LISTEN_UPDATE=media_done
+ENV AWS_HOST=nginx:9000
+ENV AWS_ACCESS=minioadmin
 ENV AWS_SECRET=sghllkfij,dhvrndld
-ENV MONGODB_URI=mongodb://hit_admin:*5up3r53CUR3D@178.33.19.30:27017
+ENV MONGODB_URI=mongodb://hit_admin:*5up3r53CUR3D@mongodb:27017
 ENV GOPROXY=https://goproxy.cn
 RUN mkdir -p /home/app
 ADD . /home/app/
