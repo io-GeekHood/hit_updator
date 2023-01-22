@@ -1,7 +1,7 @@
 FROM golang:1.18.2-alpine3.16
 RUN apk add build-base
 ENV BROKER_HOST=broker:29092
-ENV KAFKA_TOPIC_LISTEN_UPDATE=done_media_create
+ENV KAFKA_TOPIC_LISTEN_UPDATOR=done_media_create
 ENV AWS_HOST=nginx:9000
 ENV AWS_ACCESS=minioadmin
 ENV AWS_SECRET=sghllkfij,dhvrndld
@@ -13,5 +13,4 @@ RUN chmod 775 -R /home
 WORKDIR /home/app
 RUN go mod vendor
 RUN GOOS=linux GO111MODULE=on go build -mod vendor -tags musl -ldflags="-w -s" -a -installsuffix cgo /home/app/cmd/main.go
-EXPOSE 8080
 CMD ["/home/app/main"]

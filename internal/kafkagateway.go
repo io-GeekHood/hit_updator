@@ -13,7 +13,7 @@ type Streamer struct {
 }
 
 func (streamer *Streamer) StreamSetup(host string, id string) Streamer {
-
+	log.Printf("expecting broker on %s", host)
 	vortex_producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": host,
 		"client.id":         id,
@@ -32,7 +32,7 @@ func (streamer *Streamer) StreamSetup(host string, id string) Streamer {
 		log.Println("failed to create consumer for media")
 		os.Exit(1)
 	}
-	log.Printf("Initiated kafka connector %v", vortex_consumer.String())
+	log.Printf("Initiated kafka consumer %v", vortex_consumer)
 	streamer.consumer = vortex_consumer
 	streamer.producer = vortex_producer
 	return *streamer
@@ -42,7 +42,7 @@ func (streamer *Streamer) StreamSetup(host string, id string) Streamer {
 func (stream *Streamer) Consume(topic string) {
 
 	topics := []string{topic}
-	log.Printf("Downloader started listening on: %v ", topics)
+	log.Printf("mongo updator started listening on: %v ", topics)
 	err := stream.consumer.SubscribeTopics(topics, nil)
 	if err != nil {
 		log.Printf("failed to initiate kafka consumer %s", err)
